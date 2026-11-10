@@ -1,76 +1,81 @@
-# Godot Engine
+# Godot for OpenHarmony / HarmonyOS
 
-<p align="center">
-  <a href="https://godotengine.org">
-    <img src="misc/logo/logo_outlined.svg" width="400" alt="Godot Engine logo">
-  </a>
-</p>
+[中文](README-ZH.md) | English
 
-## 2D and 3D cross-platform game engine
+A community port of **Godot 4.7.2** with ARM64 and x86_64 export templates and a GDScript editor export addon. This repository contains the engine changes, OpenHarmony project skeleton, addon, build scripts and tests in one place.
 
-**[Godot Engine](https://godotengine.org) is a feature-packed, cross-platform
-game engine to create 2D and 3D games from a unified interface.** It provides a
-comprehensive set of [common tools](https://godotengine.org/features), so that
-users can focus on making games without having to reinvent the wheel. Games can
-be exported with one click to a number of platforms, including the major desktop
-platforms (Linux, macOS, Windows), mobile platforms (Android, iOS), as well as
-Web-based platforms and [consoles](https://godotengine.org/consoles).
+## Status
 
-## Free, open source and community-driven
+- Engine baseline: official `4.7.2-stable`, commit `ed1daf0bf001b61586d9930840f2f1394092c079`.
+- Platform reference: [`kdada/godot`](https://github.com/kdada/godot), `openharmony`, commit `1de71ce53007388bc229472374235169dc5db950`.
+- Builds `arm64` (HAP ABI `arm64-v8a`) and `x86_64`. One addon can export either architecture or both.
+- Vulkan and OpenGL ES 3 backends. Vulkan context initialization can fall back to GLES when allowed by project settings.
+- Uses the official Godot 4.7.2 desktop editor with the included addon; no custom desktop editor build is required.
+- Release templates only in the packaged addon. ARM32 and C# / Mono are not supported. GDExtensions require matching OHOS binaries.
 
-Godot is completely free and open source under the very permissive [MIT license](https://godotengine.org/license).
-No strings attached, no royalties, nothing. The users' games are theirs, down
-to the last line of engine code. Godot's development is fully independent and
-community-driven, empowering users to help shape their engine to match their
-expectations. It is supported by the [Godot Foundation](https://godot.foundation/)
-not-for-profit.
+ARM64 phone Vulkan startup and landscape layout have been tested. The custom x86_64 QEMU image has rendered using GLES 3.2 Mesa virgl; it currently has no Vulkan ICD and is not configured for Venus. A separate DRM atomic presentation failure has also caused a black QEMU window despite valid system screenshots. These limitations remain unresolved; startup tests do not certify all input, audio or lifecycle behavior.
 
-Before being open sourced in [February 2014](https://github.com/godotengine/godot/commit/0b806ee0fc9097fa7bda7ac0109191c9c5e0a1ac),
-Godot had been developed by [Juan Linietsky](https://github.com/reduz) and
-[Ariel Manzur](https://github.com/punto-) for several years as an in-house
-engine, used to publish several work-for-hire titles.
+## Build and package
 
-![Screenshot of a 3D scene in the Godot Engine editor](https://raw.githubusercontent.com/godotengine/godot-design/master/screenshots/editor_tps_demo_1920x1080.jpg)
+On Linux, install Python 3 with venv support, `readelf`, an OpenHarmony native SDK, and the matching official Godot editor for export tests. HAP builds also need a configured DevEco Command Line Tools environment.
 
-## Getting the engine
+```bash
+git clone https://github.com/xiaoxiaozhoutop/godot-OHOS.git
+cd godot-OHOS
+python3 -m venv .venv
+.venv/bin/pip install scons==4.11.1
+export OPENHARMONY_SDK_PATH=/path/to/command-line-tools/sdk/default/openharmony
 
-### Binary downloads
+bash build-x86_64.sh vulkan=yes opengl3=yes
+bash build-arm64.sh vulkan=yes opengl3=yes
+python3 build_dual_template.py
+python3 package_addon.py
+```
 
-Official binaries for the Godot editor and the export templates can be found
-[on the Godot website](https://godotengine.org/download).
+Build architectures sequentially to respect the memory budget. `build_jobs.py` selects parallelism from available memory and CPU count; override with `JOBS=4` or `GODOT_BUILD_JOBS=4`. `SCONS=/absolute/path/to/scons` can select an existing SCons installation. The SDK path must contain `native/`.
 
-### Compiling from source
+Outputs:
 
-[See the official docs](https://docs.godotengine.org/en/latest/engine_details/development/compiling)
-for compilation instructions for every supported platform.
+```text
+bin/libgodot.openharmony.template_release.{arm64,x86_64}.so
+plugin/addons/godot-ohos/bin/openharmony_release_dual.zip
+dist/godot-ohos-4.7.2-arm64-x86_64.zip
+dist/godot-ohos-4.7.2-arm64-x86_64.zip.sha256
+```
 
-## Community and contributing
+Compiled libraries and archives are not committed. Build them locally; ready-to-install addon archives can be distributed separately as release assets.
 
-Godot is not only an engine but an ever-growing community of users and engine
-developers. The main community channels are listed [on the homepage](https://godotengine.org/community).
+## Export a game
 
-The best way to get in touch with the core engine developers is to join the
-[Godot Contributors Chat](https://chat.godotengine.org).
+Extract the addon archive into your game's `addons/` directory, enable **godot-ohos**, and add an **OpenHarmony** export preset. Select the bundle name, orientation, SDK settings and architecture.
 
-To get started contributing to the project, see the [contributing guide](CONTRIBUTING.md).
-This document also includes guidelines for reporting bugs.
+```bash
+godot --headless --path /path/to/game \
+  --export-release "OpenHarmony" /path/to/output/my_game
+cd /path/to/output/my_game
+export DEVECO_CLI_CLT_PATH=/path/to/command-line-tools
+devecocli build --modules entry --build-mode release
+```
 
-## Documentation and demos
+The addon generates a project, not a signed HAP. SCons builds `libgodot.so`; CMake/hvigor builds the matching N-API `libentry.so` in the exported project. Configure signing for your target before installing. Existing JSON5 signing settings are preserved on re-export. Do not mix this port's native libraries with GodotHub's older bridge ABI.
 
-The official documentation is hosted on [Read the Docs](https://docs.godotengine.org).
-It is maintained by the Godot community in its own [GitHub repository](https://github.com/godotengine/godot-docs).
+## Tests
 
-The [class reference](https://docs.godotengine.org/en/latest/classes/)
-is also accessible from the Godot editor.
+```bash
+.venv/bin/python -m unittest -v test_toolchain test_packaging
+python3 verify_ohos.py plugin/addons/godot-ohos/bin/openharmony_release_dual.zip
+godot --headless --editor --path plugin --import
+godot --headless --editor --path plugin --script res://test_export.gd
+```
 
-We also maintain official demos in their own [GitHub repository](https://github.com/godotengine/godot-demo-projects)
-as well as a list of [awesome Godot community resources](https://github.com/godotengine/awesome-godot).
+The Debug-export rejection is an expected negative test. Check the logged template path and perform separate device rendering, input, storage and lifecycle tests. Static ELF checks cannot prove runtime support.
 
-There are also a number of other
-[learning resources](https://docs.godotengine.org/en/latest/community/tutorials.html)
-provided by the community, such as text and video tutorials, demos, etc.
-Consult the [community channels](https://godotengine.org/community)
-for more information.
+## Maintenance and licensing
 
-[![Code Triagers Badge](https://www.codetriage.com/godotengine/godot/badges/users.svg)](https://www.codetriage.com/godotengine/godot)
-[![Translate on Weblate](https://hosted.weblate.org/widgets/godot-engine/-/godot/svg-badge.svg)](https://hosted.weblate.org/engage/godot-engine/?utm_source=widget)
+- [Detailed porting and upgrade guide (Chinese)](PORTING-GUIDE-ZH.md)
+- [Quick build notes (Chinese)](README-build.md)
+- [Agent working instructions](AGENTS.md)
+- [Addon usage](plugin/addons/godot-ohos/README.md)
+- [Original upstream README](README.upstream.md)
+
+Godot is MIT-licensed; see [LICENSE.txt](LICENSE.txt) and [COPYRIGHT.txt](COPYRIGHT.txt) for engine and third-party notices. This is a community port, not an official Godot or GodotHub release.

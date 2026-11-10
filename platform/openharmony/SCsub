@@ -1,0 +1,69 @@
+#!/usr/bin/env python
+from misc.utility.scons_hints import *
+
+import os
+import re
+import shutil
+import tempfile
+
+from methods import print_warning
+
+Import("env")
+
+
+def generate_bundle(target, source, env):
+    template_dir = Dir("#platform/openharmony/template").abspath
+    # Package a staging copy; never write build products into the source template.
+    temporary_root = os.environ.get("TMPDIR", "/tmp/opencode" if os.path.isdir("/tmp/opencode") else None)
+    with tempfile.TemporaryDirectory(prefix="godot-ohos-", dir=temporary_root) as staging:
+        project_dir = os.path.join(staging, "project")
+        shutil.copytree(template_dir, project_dir)
+        library_dir = os.path.join(project_dir, "entry", "libs", lib_arch_dir)
+        os.makedirs(library_dir, exist_ok=True)
+        shutil.copy2(str(source[0]), os.path.join(library_dir, "libgodot.so"))
+        include_dir = os.path.join(project_dir, "entry", "src", "main", "cpp", "include")
+        os.makedirs(include_dir, exist_ok=True)
+        shutil.copy2(File("#platform/openharmony/bridge_openharmony.h").abspath, include_dir)
+        profile_path = os.path.join(project_dir, "entry", "build-profile.json5")
+        with open(profile_path, encoding="utf-8") as profile:
+            content = re.sub(
+                r'"abiFilters"\s*:\s*\[[^\]]*\]', f'"abiFilters": ["{lib_arch_dir}"]', profile.read()
+            )
+        with open(profile_path, "w", encoding="utf-8") as profile:
+            profile.write(content)
+        shutil.make_archive(os.path.splitext(str(target[0]))[0], "zip", root_dir=project_dir)
+
+
+openharmony_files = [Glob("*.cpp")]
+
+env_openharmony = env.Clone()
+
+openharmony_objects = []
+for x in openharmony_files:
+    openharmony_objects.append(env_openharmony.SharedObject(x))
+
+lib_arch_dir = ""
+if env["arch"] == "arm64":
+    lib_arch_dir = "arm64-v8a"
+elif env["arch"] == "x86_64":
+    lib_arch_dir = "x86_64"
+else:
+    print_warning("Architecture not suitable for embedding into APP; keeping .so at \\bin")
+
+if lib_arch_dir != "":
+    if env.dev_build:
+        lib_type_dir = "dev"
+    elif env.debug_features:
+        lib_type_dir = "debug"
+    else:  # Release
+        lib_type_dir = "release"
+
+    lib_arch = env["arch"]
+    lib_name = "#bin/libgodot"
+    lib = env_openharmony.add_shared_library(lib_name, openharmony_objects, redirect_build_objects=False)
+
+    if env["generate_bundle"]:
+        bundle_path = f"#bin/openharmony_{lib_type_dir}_{lib_arch_dir}.zip"
+        command = env.Command(bundle_path, lib, generate_bundle)
+        env.Depends(command, Glob("template/**/*", strings=True))
+        env.AlwaysBuild(command)

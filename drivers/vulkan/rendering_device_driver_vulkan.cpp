@@ -3691,6 +3691,15 @@ Error RenderingDeviceDriverVulkan::swap_chain_resize(CommandQueueID p_cmd_queue,
 	VkResult err = functions.GetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, surface->vk_surface, &surface_capabilities);
 	ERR_FAIL_COND_V_MSG(err != VK_SUCCESS, ERR_CANT_CREATE, vformat("Couldn't get Vulkan surface capabilities (VkResult error %d).", err));
 
+#ifdef OPENHARMONY_ENABLED
+	// HarmonyOS surface extents already match the XComponent layout; force IDENTITY preTransform when supported to avoid double-rotation/aspect distortion.
+	VkSurfaceTransformFlagBitsKHR surface_transform_bits = (surface_capabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
+			? VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR
+			: surface_capabilities.currentTransform;
+#else
+	VkSurfaceTransformFlagBitsKHR surface_transform_bits = surface_capabilities.currentTransform;
+#endif
+
 	// No swapchain yet, this is the first time we're creating it.
 	if (!swap_chain->vk_swapchain) {
 		if (surface_capabilities.currentExtent.width == 0xFFFFFFFF) {
@@ -3704,8 +3713,8 @@ Error RenderingDeviceDriverVulkan::swap_chain_resize(CommandQueueID p_cmd_queue,
 
 		// We must SWAP() only once otherwise we'll keep ping-ponging between
 		// the right and wrong resolutions after multiple calls to swap_chain_resize().
-		if (surface_capabilities.currentTransform & VK_SURFACE_TRANSFORM_ROTATE_90_BIT_KHR ||
-				surface_capabilities.currentTransform & VK_SURFACE_TRANSFORM_ROTATE_270_BIT_KHR) {
+		if (surface_transform_bits & VK_SURFACE_TRANSFORM_ROTATE_90_BIT_KHR ||
+				surface_transform_bits & VK_SURFACE_TRANSFORM_ROTATE_270_BIT_KHR) {
 			// Swap to get identity width and height.
 			SWAP(surface_capabilities.currentExtent.width, surface_capabilities.currentExtent.height);
 		}
@@ -3776,8 +3785,7 @@ Error RenderingDeviceDriverVulkan::swap_chain_resize(CommandQueueID p_cmd_queue,
 		desired_swapchain_images = MIN(desired_swapchain_images, surface_capabilities.maxImageCount);
 	}
 
-	// Refer to the comment in command_queue_present() for more details.
-	VkSurfaceTransformFlagBitsKHR surface_transform_bits = surface_capabilities.currentTransform;
+	// surface_transform_bits computed above.
 
 	VkCompositeAlphaFlagBitsKHR composite_alpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 	if (OS::get_singleton()->is_layered_allowed() || !(surface_capabilities.supportedCompositeAlpha & composite_alpha)) {

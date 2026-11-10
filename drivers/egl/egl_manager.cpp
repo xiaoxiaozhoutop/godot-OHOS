@@ -51,8 +51,10 @@
 #endif
 
 #define KHRONOS_STATIC 1
+#if !defined(OPENHARMONY_ENABLED)
 extern "C" EGLAPI void EGLAPIENTRY eglSetBlobCacheFuncsANDROID(EGLDisplay dpy, EGLSetBlobFuncANDROID set, EGLGetBlobFuncANDROID get);
 extern "C" EGLAPI EGLDisplay EGLAPIENTRY eglGetPlatformDisplayEXT(EGLenum platform, void *native_display, const EGLint *attrib_list);
+#endif
 #undef KHRONOS_STATIC
 
 #endif // defined(EGL_STATIC)
@@ -88,8 +90,14 @@ int EGLManager::_get_gldisplay_id(void *p_display) {
 	if (GLAD_EGL_VERSION_1_5) {
 		Vector<EGLAttrib> attribs = _get_platform_display_attributes();
 		new_gldisplay.egl_display = eglGetPlatformDisplay(_get_platform_extension_enum(), new_gldisplay.display, (attribs.size() > 0) ? attribs.ptr() : nullptr);
+#ifdef OPENHARMONY_ENABLED
+		if (new_gldisplay.egl_display == EGL_NO_DISPLAY) {
+			eglGetError();
+			new_gldisplay.egl_display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+		}
+#endif
 	} else if (GLAD_EGL_EXT_platform_base) {
-#ifdef EGL_EXT_platform_base
+#if defined(EGL_EXT_platform_base) && !defined(EGL_STATIC)
 		// eglGetPlatformDisplayEXT wants its attributes as EGLint, so we'll truncate
 		// what we already have. It's a bit naughty but I'm really not sure what else
 		// we could do here.
@@ -99,7 +107,7 @@ int EGLManager::_get_gldisplay_id(void *p_display) {
 		}
 
 		new_gldisplay.egl_display = eglGetPlatformDisplayEXT(_get_platform_extension_enum(), new_gldisplay.display, (attribs.size() > 0) ? attribs.ptr() : nullptr);
-#endif // EGL_EXT_platform_base
+#endif // EGL_EXT_platform_base && !EGL_STATIC
 	} else {
 		NativeDisplayType *native_display_type = (NativeDisplayType *)new_gldisplay.display;
 		new_gldisplay.egl_display = eglGetDisplay(*native_display_type);
@@ -125,6 +133,12 @@ int EGLManager::_get_gldisplay_id(void *p_display) {
 	}
 
 #ifdef EGL_ANDROID_blob_cache
+#if defined(OPENHARMONY_ENABLED)
+	PFNEGLSETBLOBCACHEFUNCSANDROIDPROC set_blob_cache_funcs = (PFNEGLSETBLOBCACHEFUNCSANDROIDPROC)eglGetProcAddress("eglSetBlobCacheFuncsANDROID");
+	if (set_blob_cache_funcs != nullptr && !shader_cache_dir.is_empty()) {
+		set_blob_cache_funcs(new_gldisplay.egl_display, &EGLManager::_set_cache, &EGLManager::_get_cache);
+	}
+#else
 #if defined(EGL_STATIC)
 	bool has_blob_cache = true;
 #else
@@ -133,6 +147,7 @@ int EGLManager::_get_gldisplay_id(void *p_display) {
 	if (has_blob_cache && !shader_cache_dir.is_empty()) {
 		eglSetBlobCacheFuncsANDROID(new_gldisplay.egl_display, &EGLManager::_set_cache, &EGLManager::_get_cache);
 	}
+#endif
 #endif
 
 #ifdef WINDOWS_ENABLED
@@ -292,6 +307,12 @@ Error EGLManager::window_create(DisplayServerEnums::WindowID p_window_id, void *
 
 	if (GLAD_EGL_VERSION_1_5) {
 		glwindow.egl_surface = eglCreatePlatformWindowSurface(gldisplay.egl_display, gldisplay.egl_config, p_native_window, egl_attribs.ptr());
+#ifdef OPENHARMONY_ENABLED
+		if (glwindow.egl_surface == EGL_NO_SURFACE) {
+			eglGetError();
+			glwindow.egl_surface = eglCreateWindowSurface(gldisplay.egl_display, gldisplay.egl_config, (EGLNativeWindowType)p_native_window, nullptr);
+		}
+#endif
 	} else {
 		EGLNativeWindowType *native_window_type = (EGLNativeWindowType *)p_native_window;
 		glwindow.egl_surface = eglCreateWindowSurface(gldisplay.egl_display, gldisplay.egl_config, *native_window_type, nullptr);
@@ -524,7 +545,7 @@ Error EGLManager::initialize(void *p_native_display) {
 	// If the above method fails, we don't support client extensions, so there's nothing to check.
 	if (eglGetError() == EGL_SUCCESS) {
 		const char *platform = _get_platform_extension_name();
-		if (!client_extensions_string.split(" ").has(platform)) {
+		if (platform && !client_extensions_string.split(" ").has(platform)) {
 			ERR_FAIL_V_MSG(ERR_UNAVAILABLE, vformat("EGL platform extension \"%s\" not found.", platform));
 		}
 	}

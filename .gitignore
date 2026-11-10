@@ -396,3 +396,18 @@ $RECYCLE.BIN/
 *.msp
 *.lnk
 *.generated.props
+
+# OpenHarmony addon builds, local SDK configuration and signing materials
+/dist/
+/plugin/build/
+**/.godot/
+**/.hvigor/
+**/oh_modules/
+**/node_modules/
+*.hap
+*.p12
+*.p7b
+*.csr
+*.cer
+*.keystore
+*.import

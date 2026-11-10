@@ -1,0 +1,14 @@
+config_version=5
+
+[application]
+
+config/name="OHOS Dual Export Test"
+run/main_scene="res://test_scene.tscn"
+
+[rendering]
+
+renderer/rendering_method="mobile"
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/godot-ohos/plugin.cfg")

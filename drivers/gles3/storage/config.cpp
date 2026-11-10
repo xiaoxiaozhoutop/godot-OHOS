@@ -37,7 +37,7 @@
 #include "core/string/ustring.h"
 #include "drivers/gles3/rasterizer_util_gles3.h"
 
-#ifdef ANDROID_ENABLED
+#if defined(ANDROID_ENABLED) || defined(OPENHARMONY_ENABLED)
 #include <platform_egl.h>
 #endif
 
@@ -153,7 +153,7 @@ Config::Config() {
 	multiview_supported = extensions.has("OCULUS_multiview") || extensions.has("GL_OVR_multiview2") || extensions.has("GL_OVR_multiview");
 #endif
 
-#ifdef ANDROID_ENABLED
+#if defined(ANDROID_ENABLED) || defined(OPENHARMONY_ENABLED)
 	// These are GLES only
 	rt_msaa_supported = extensions.has("GL_EXT_multisampled_render_to_texture");
 	rt_msaa_multiview_supported = extensions.has("GL_OVR_multiview_multisampled_render_to_texture");
