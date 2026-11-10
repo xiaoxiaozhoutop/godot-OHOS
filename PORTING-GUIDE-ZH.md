@@ -113,7 +113,7 @@ python3 -m venv .venv
 
 export OPENHARMONY_SDK_PATH=/home/zhou/command-line-tools/sdk/default/openharmony
 export DEVECO_CLI_CLT_PATH=/home/zhou/command-line-tools
-export TMPDIR=/tmp/opencode
+export TMPDIR=/tmp/XXXXXXX
 mkdir -p "$TMPDIR"
 
 godot --version
@@ -238,7 +238,7 @@ devecocli run --device <真机序列号> --module entry --build-mode release
 ```bash
 devecocli log --device <序列号> \
   --bundle-name com.example.mygame --tail 200
-devecocli ui screenshot --device <序列号> --path /tmp/opencode/mygame-check.png
+devecocli ui screenshot --device <序列号> --path /tmp/XXXXXXX/mygame-check.png
 ```
 
 截图路径需尚不存在。日志、截图和 PID 都是当次运行的证据，不应复制历史 PID 当作最新状态。
@@ -249,7 +249,7 @@ devecocli ui screenshot --device <序列号> --path /tmp/opencode/mygame-check.p
 
 已验证的临时测试方法是复制**未签名 HAP**，只在副本中把 `module.json` 的 `app.compileSdkType` 改为 `OpenHarmony`、`minAPIVersion` 改为 `22`、`targetAPIVersion` 改为 `26`，使用 SDK 的 `OpenHarmony.p12` 签出 `release`、`os_integration` profile，再通过 hdc 安装。只修改测试副本，不覆盖真机签名配置。完整本地重签自动化脚本目前没有纳入本工作区，不能直接用 `devecocli run` 替代这一步。
 
-最近一次重签测试产物曾保存于 `/tmp/opencode/gpz-sign-FqQ0dI/gpz-ohos-rel-signed.hap`，属于临时文件，不是稳定发布位置。重复测试应复用安全保存的同一证书，避免每次生成新证书导致 `9568332 install sign info inconsistent`。需要卸载时必须先获得确认，卸载可能清除存档。
+最近一次重签测试产物曾保存于 `/tmp/XXXXXXX/gpz-sign-FqQ0dI/gpz-ohos-rel-signed.hap`，属于临时文件，不是稳定发布位置。重复测试应复用安全保存的同一证书，避免每次生成新证书导致 `9568332 install sign info inconsistent`。需要卸载时必须先获得确认，卸载可能清除存档。
 
 ### 6.3 Vulkan 缺 ICD 与 QEMU 黑屏
 
